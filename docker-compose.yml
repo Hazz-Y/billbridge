@@ -1,0 +1,42 @@
+# Backend + frontend containers (ledger via LEDGER_MODE=auto → mock unless a Fabric/Drunix network is reachable).
+# The Fabric/Drunix network itself is started by `make network-up` (network/deploy.sh) and shares the host network.
+# NOTE: on the original build host Docker was unusable (full system drive); `make demo` runs natively with Node.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: [.env.example]
+    environment:
+      - NODE_ENV=development
+      - DEMO_MODE=true
+      - LEDGER_MODE=${LEDGER_MODE:-auto}
+      - PORT=4000
+      - BACKEND_URL=http://backend:4000
+      - FRONTEND_URL=http://localhost:3000
+      - MOCK_LEDGER_FILE=/data/ledger.json
+      - DATABASE_URL=file:/data/dev.db
+      - UPLOAD_DIR=/data/uploads
+    ports: ["4000:4000"]
+    volumes:
+      - bb-data:/data
+      - ./identities:/app/identities:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:4000
+    environment:
+      - NEXT_TELEMETRY_DISABLED=1
+    ports: ["3000:3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+volumes:
+  bb-data:
