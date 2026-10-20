@@ -1,0 +1,142 @@
+// SQLite holds ONLY off-chain data (users, UPI rails, uploads, mirrors). Ownership and balances live on the ledger.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  role          String
+  participantId String   @unique
+  mspId         String
+  orgName       String
+  vpa           String
+  gstin         String?
+  createdAt     DateTime @default(now())
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model UpiTransaction {
+  upiRef        String    @id
+  kind          String
+  direction     String
+  status        String
+  amountPaise   Int
+  invoiceId     String?
+  participantId String?
+  payerVpa      String?
+  payeeVpa      String
+  deeplink      String?
+  ledgerTxId    String?
+  errorCode     String?
+  providerTxnId String?
+  units         Int?
+  webhookResult String?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([invoiceId])
+  @@index([participantId])
+  @@map("upi_transactions")
+}
+
+model UpiReservation {
+  id         String   @id @default(cuid())
+  invoiceId  String
+  investorId String
+  units      Int
+  upiRef     String   @unique
+  expiresAt  DateTime
+  released   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("upi_reservations")
+}
+
+model UploadedFile {
+  id             String   @id @default(cuid())
+  fileHash       String
+  fileName       String
+  mime           String
+  sizeBytes      Int
+  path           String
+  ownerId        String
+  extractionJson String
+  createdAt      DateTime @default(now())
+
+  @@index([ownerId])
+  @@map("uploaded_files")
+}
+
+model Anomaly {
+  id         String   @id @default(cuid())
+  kind       String
+  actorId    String
+  invoiceRef String?
+  errorCode  String
+  detail     String
+  ledgerTxId String?
+  anomalyId  String?
+  createdAt  DateTime @default(now())
+
+  @@map("anomalies")
+}
+
+model LedgerEvent {
+  seq         Int      @id @default(autoincrement())
+  txId        String   @unique
+  blockNumber Int
+  fn          String
+  actorId     String
+  actorRole   String
+  invoiceId   String?
+  timestamp   String
+  envelope    String
+  createdAt   DateTime @default(now())
+
+  @@map("events")
+}
+
+model ScoreHistory {
+  id        Int    @id @default(autoincrement())
+  buyerId   String
+  score     Int
+  onTime    Int
+  late      Int
+  defaulted Int
+  reason    String
+  txId      String
+  timestamp String
+
+  @@unique([txId, buyerId])
+  @@index([buyerId])
+  @@map("score_history")
+}
+
+model AppState {
+  key   String @id
+  value String
+
+  @@map("app_state")
+}
