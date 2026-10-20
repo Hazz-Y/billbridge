@@ -8,7 +8,8 @@ export const TooltipProvider = TooltipPrimitive.Provider;
 export function Tooltip({ content, children, className, side = 'top', asChild = true }: { content: ReactNode; children: ReactNode; className?: string; side?: 'top' | 'bottom' | 'left' | 'right'; asChild?: boolean }) {
   return (
     <TooltipPrimitive.Root delayDuration={150}>
-      <TooltipPrimitive.Trigger asChild={asChild}>{children}</TooltipPrimitive.Trigger>
+      {/* a non-asChild trigger would render a <button>; wrap in a span so buttons (even disabled ones) can be children */}
+      <TooltipPrimitive.Trigger asChild>{asChild ? children : <span className="inline-flex">{children}</span>}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
           side={side}
