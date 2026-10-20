@@ -1,0 +1,21 @@
+# BillBridge frontend — Netlify deployment as a static export (Next.js App Router).
+# This app is purely client-rendered (no API routes, no dynamic segments, no next/headers), so it
+# ships as a plain static site rather than through Netlify's Next.js Runtime/serverless functions.
+# The backend (Fastify + SQLite + file-persisted ledger + SSE) is a stateful long-running process
+# and cannot run on Netlify as architected; it is deployed separately — see docs/DEPLOYMENT.md —
+# and NEXT_PUBLIC_API_URL below points at it.
+
+[build]
+  base = "."
+  command = "npm run build --workspace frontend"
+  publish = "frontend/out"
+
+[build.environment]
+  NEXT_TELEMETRY_DISABLED = "1"
+  STATIC_EXPORT = "1"
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

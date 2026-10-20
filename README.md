@@ -2,6 +2,8 @@
 
 > Drunix Hackathon (NPCI × Citi) · Track: Real Asset Tokenization · **SANDBOX — prototype, synthetic data, not investment advice.**
 
+**Live frontend:** https://billbridge-hackathon.netlify.app (static export; point it at a running backend — see `docs/DEPLOYMENT.md` for why the stateful backend isn't on Netlify and how to wire one up).
+
 An MSME supplier turns a buyer-accepted invoice into fractional ₹1,000 units on a permissioned ledger. Investors fund it
 over UPI, the supplier is paid in minutes, and on the due date the buyer's UPI repayment is distributed pro-rata by the
 chaincode. Double financing is rejected inside the ledger by three independent guards, and every rejection is itself an

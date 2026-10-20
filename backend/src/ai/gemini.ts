@@ -36,19 +36,43 @@ interface GeminiOut {
   taxAmount?: string; totalAmount?: string; fieldConfidence?: Record<string, number>;
 }
 
-export async function extractWithGemini(buffer: Buffer, mime: string, opts: { apiKey: string; model: string; timeoutMs: number }): Promise<ExtractedInvoice> {
-  const { GoogleGenAI } = await import('@google/genai');
-  const ai = new GoogleGenAI({ apiKey: opts.apiKey });
+/** Gemini's own 503 message says demand spikes are "usually temporary" — one quick retry recovers most of them. */
+function isTransient(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.includes('"code":503') || msg.includes('UNAVAILABLE') || msg.includes('overloaded');
+}
+
+async function callGemini(ai: InstanceType<typeof import('@google/genai').GoogleGenAI>, buffer: Buffer, mime: string, model: string, timeoutMs: number) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await ai.models.generateContent({
-      model: opts.model,
+    return await ai.models.generateContent({
+      model,
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: buffer.toString('base64') } }, { text: PROMPT }] }],
       config: { responseMimeType: 'application/json', responseSchema: RESPONSE_SCHEMA, abortSignal: ctrl.signal, temperature: 0 },
     });
+  } finally { clearTimeout(timer); }
+}
+
+export async function extractWithGemini(buffer: Buffer, mime: string, opts: { apiKey: string; model: string; timeoutMs: number }): Promise<ExtractedInvoice> {
+  const { GoogleGenAI } = await import('@google/genai');
+  const ai = new GoogleGenAI({ apiKey: opts.apiKey });
+  const firstBudget = Math.min(opts.timeoutMs, Math.ceil(opts.timeoutMs * 0.6));
+  try {
+    const res = await callGemini(ai, buffer, mime, opts.model, firstBudget);
     const text = res.text ?? '';
     const out = JSON.parse(text) as GeminiOut;
+    return finish(out);
+  } catch (e) {
+    if (!isTransient(e)) throw e;
+    // one bounded retry within the remaining budget (demand spikes are usually momentary)
+    const res = await callGemini(ai, buffer, mime, opts.model, Math.max(2000, opts.timeoutMs - firstBudget));
+    const text = res.text ?? '';
+    const out = JSON.parse(text) as GeminiOut;
+    return finish(out);
+  }
+
+  async function finish(out: GeminiOut): Promise<ExtractedInvoice> {
     const warnings: string[] = [];
     const lineItems = (out.lineItems ?? []).map((li) => ({
       description: li.description, quantity: li.quantity, unitPricePaise: parseDecimalToPaise(li.unitPrice ?? '') ?? 0, totalPaise: parseDecimalToPaise(li.amount ?? '') ?? 0,
@@ -68,5 +92,5 @@ export async function extractWithGemini(buffer: Buffer, mime: string, opts: { ap
       fieldConfidence: fc, warnings, source: 'GEMINI',
     };
     return postprocess(raw);
-  } finally { clearTimeout(timer); }
+  }
 }

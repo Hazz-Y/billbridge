@@ -68,7 +68,7 @@ export const config = {
     },
   },
   uploadDir: fromRoot(str('UPLOAD_DIR', './backend/uploads')),
-  gemini: { apiKey: process.env['GEMINI_API_KEY'] ?? '', model: str('GEMINI_MODEL', 'gemini-2.5-flash'), timeoutMs: int('GEMINI_TIMEOUT_MS', 15000) },
+  gemini: { apiKey: process.env['GEMINI_API_KEY'] ?? '', model: str('GEMINI_MODEL', 'gemini-3.5-flash'), timeoutMs: int('GEMINI_TIMEOUT_MS', 15000) },
   autoSupplierPayout: bool('AUTO_SUPPLIER_PAYOUT', true),
   statsCacheMs: int('STATS_CACHE_MS', 5000),
 };
