@@ -1,0 +1,49 @@
+{
+  "name": "demo clock, late / default windows, late settlement and default score effects",
+  "config": { "demoMode": true, "graceDays": 7, "defaultDays": 90 },
+  "identities": {
+    "op": { "mspId": "Org1MSP", "role": "OPERATOR", "participantId": "operator1" },
+    "msme1": { "mspId": "Org1MSP", "role": "MSME", "participantId": "msme1" },
+    "buyer1": { "mspId": "Org2MSP", "role": "BUYER", "participantId": "buyer1" },
+    "inv1": { "mspId": "Org1MSP", "role": "INVESTOR", "participantId": "investor1" }
+  },
+  "steps": [
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["msme1", "MSME", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["buyer1", "BUYER", "Org2MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["investor1", "INVESTOR", "Org1MSP", 0] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["msme1", "APPROVED", ""] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["buyer1", "APPROVED", ""] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["investor1", "APPROVED", ""] },
+    { "caller": "op", "fn": "SeedBuyerHistory", "args": ["buyer1", 5, 2, 0], "expect": { "result": { "score": 63 } } },
+    { "caller": "op", "fn": "SeedBuyerHistory", "note": "not a buyer", "args": ["msme1", 1, 0, 0], "expect": { "error": "ERR_INVALID_ARGUMENT" } },
+    { "caller": "op", "fn": "GetClock", "ts": "2026-03-01T10:00:00Z", "args": [], "expect": { "result": { "offsetSeconds": 0, "demoMode": true } } },
+
+    { "id": "late", "caller": "msme1", "fn": "CreateInvoice", "ts": "2026-03-01T10:00:00Z", "args": ["msme1", "buyer1", 1000000, "2026-02-25", "2026-05-07", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "L", "fileHash": "fl", "lineItems": [] }] },
+    { "caller": "buyer1", "fn": "BuyerAcceptInvoice", "ts": "2026-03-01T10:00:01Z", "args": ["$late.invoiceId"] },
+    { "caller": "op", "fn": "ListInvoice", "ts": "2026-03-01T10:00:02Z", "args": ["$late.invoiceId", 800, 1] },
+    { "caller": "inv1", "fn": "Invest", "ts": "2026-03-01T10:00:03Z", "args": ["$late.invoiceId", "investor1", 10, "L-u1"] },
+    { "caller": "op", "fn": "ReleaseToSupplier", "ts": "2026-03-01T10:00:04Z", "args": ["$late.invoiceId", "L-p"] },
+    { "caller": "op", "fn": "MarkLate", "ts": "2026-03-01T10:00:05Z", "note": "way before due", "args": ["$late.invoiceId"], "expect": { "error": "ERR_NOT_YET_LATE" } },
+    { "caller": "op", "fn": "MarkLate", "ts": "2026-05-14T00:00:00Z", "note": "exactly at due+grace boundary -> still not late (now must be > threshold)", "args": ["$late.invoiceId"], "expect": { "error": "ERR_NOT_YET_LATE" } },
+    { "caller": "op", "fn": "AdvanceDemoClock", "ts": "2026-03-01T10:00:06Z", "args": [6480000], "note": "+75 days -> 2026-05-15T10:00:06Z", "expect": { "result": { "offsetSeconds": 6480000, "now": "2026-05-15T10:00:06Z" } }, "events": ["CLOCK_ADVANCED"] },
+    { "caller": "op", "fn": "GetClock", "ts": "2026-03-01T10:00:06Z", "args": [], "expect": { "result": { "offsetSeconds": 6480000, "now": "2026-05-15T10:00:06Z" } } },
+    { "caller": "op", "fn": "MarkLate", "ts": "2026-03-01T10:00:07Z", "args": ["$late.invoiceId"], "expect": { "result": { "status": "LATE" } }, "events": ["INVOICE_LATE", "INVOICE_STATUS_CHANGED"] },
+    { "caller": "op", "fn": "MarkLate", "ts": "2026-03-01T10:00:08Z", "note": "already LATE", "args": ["$late.invoiceId"], "expect": { "error": "ERR_INVALID_TRANSITION" } },
+    { "caller": "op", "fn": "MarkDefault", "ts": "2026-03-01T10:00:09Z", "note": "only 8 days past due", "args": ["$late.invoiceId"], "expect": { "error": "ERR_NOT_YET_DEFAULT" } },
+    { "caller": "op", "fn": "RecordRepayment", "ts": "2026-03-01T10:00:10Z", "args": ["$late.invoiceId", "L-r", 1000000], "expect": { "result": { "onTime": false, "invoice": { "status": "SETTLED" }, "buyerScore": { "settledOnTime": 5, "settledLate": 3, "score": 53 } } } },
+
+    { "id": "def", "caller": "msme1", "fn": "CreateInvoice", "ts": "2026-03-01T10:01:00Z", "note": "now is 2026-05-15 (offset applies); due 2026-06-30", "args": ["msme1", "buyer1", 1000000, "2026-05-01", "2026-06-30", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "D", "fileHash": "fd", "lineItems": [] }], "expect": { "result": { "createdAt": "2026-05-15T10:01:00Z" } } },
+    { "caller": "buyer1", "fn": "BuyerAcceptInvoice", "ts": "2026-03-01T10:01:01Z", "args": ["$def.invoiceId"] },
+    { "caller": "op", "fn": "ListInvoice", "ts": "2026-03-01T10:01:02Z", "args": ["$def.invoiceId", 800, 1], "expect": { "result": { "tenorDays": 46, "listedAt": "2026-05-15T10:01:02Z" } } },
+    { "caller": "inv1", "fn": "Invest", "ts": "2026-03-01T10:01:03Z", "args": ["$def.invoiceId", "investor1", 10, "D-u1"], "expect": { "result": { "holding": { "costPaise": 989920 } } } },
+    { "caller": "op", "fn": "ReleaseToSupplier", "ts": "2026-03-01T10:01:04Z", "args": ["$def.invoiceId", "D-p"] },
+    { "caller": "op", "fn": "MarkDefault", "ts": "2026-03-01T10:01:05Z", "args": ["$def.invoiceId"], "expect": { "error": "ERR_NOT_YET_DEFAULT" } },
+    { "caller": "op", "fn": "AdvanceDemoClock", "ts": "2026-03-01T10:01:06Z", "args": [12096000], "note": "+140 days -> 2026-10-02 (> due 06-30 + 90)", "expect": { "result": { "offsetSeconds": 18576000 } } },
+    { "caller": "op", "fn": "MarkDefault", "ts": "2026-03-01T10:01:07Z", "note": "SUPPLIER_PAID -> DEFAULTED directly is allowed", "args": ["$def.invoiceId"],
+      "expect": { "result": { "invoice": { "status": "DEFAULTED" }, "buyerScore": { "defaulted": 1, "settledOnTime": 5, "settledLate": 3, "score": 34 }, "holdings": [ { "holderId": "investor1", "lossPaise": 989920, "receivedPaise": 0 } ] } },
+      "events": ["INVOICE_DEFAULTED", "SCORE_UPDATED", "INVOICE_STATUS_CHANGED"] },
+    { "caller": "op", "fn": "RecordRepayment", "ts": "2026-03-01T10:01:08Z", "note": "no repayment after default", "args": ["$def.invoiceId", "D-r", 1000000], "expect": { "error": "ERR_INVALID_TRANSITION" } },
+    { "caller": "op", "fn": "GetPlatformStats", "ts": "2026-03-01T10:01:09Z", "args": [], "expect": { "result": { "settledInvoices": 1, "defaultRateBps": 5000 } } },
+    { "caller": "op", "fn": "AdvanceDemoClock", "ts": "2026-03-01T10:01:10Z", "note": "negative advance allowed (rewind)", "args": [-18576000], "expect": { "result": { "offsetSeconds": 0 } } }
+  ]
+}

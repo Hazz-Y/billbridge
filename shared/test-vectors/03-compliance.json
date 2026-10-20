@@ -1,0 +1,66 @@
+{
+  "name": "compliance-by-code: KYC gate, per-investor cap (incl. cumulative), freeze blocks every role, unfreeze restores",
+  "config": { "demoMode": true },
+  "identities": {
+    "op": { "mspId": "Org1MSP", "role": "OPERATOR", "participantId": "operator1" },
+    "op2": { "mspId": "Org1MSP", "role": "OPERATOR", "participantId": "operator2" },
+    "msme1": { "mspId": "Org1MSP", "role": "MSME", "participantId": "msme1" },
+    "buyer1": { "mspId": "Org2MSP", "role": "BUYER", "participantId": "buyer1" },
+    "pending": { "mspId": "Org1MSP", "role": "INVESTOR", "participantId": "investorPending" },
+    "tiny": { "mspId": "Org1MSP", "role": "INVESTOR", "participantId": "investorTiny" },
+    "big": { "mspId": "Org1MSP", "role": "INVESTOR", "participantId": "investorBig" }
+  },
+  "steps": [
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["operator2", "OPERATOR", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["msme1", "MSME", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["buyer1", "BUYER", "Org2MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["investorPending", "INVESTOR", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["investorTiny", "INVESTOR", "Org1MSP", 5000000] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["investorBig", "INVESTOR", "Org1MSP", 0] },
+    { "caller": "msme1", "fn": "CreateInvoice", "note": "MSME still PENDING -> KYC gate",
+      "args": ["msme1", "buyer1", 40000000, "2026-02-25", "2026-05-07", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "N", "fileHash": "f1", "lineItems": [] }],
+      "expect": { "error": "ERR_KYC_NOT_APPROVED" } },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["msme1", "APPROVED", ""] },
+    { "caller": "msme1", "fn": "CreateInvoice", "note": "buyer still PENDING -> KYC gate on buyer",
+      "args": ["msme1", "buyer1", 40000000, "2026-02-25", "2026-05-07", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "N", "fileHash": "f1", "lineItems": [] }],
+      "expect": { "error": "ERR_KYC_NOT_APPROVED" } },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["buyer1", "APPROVED", ""] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["investorTiny", "APPROVED", ""] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["investorBig", "APPROVED", ""] },
+    { "id": "inv", "caller": "msme1", "fn": "CreateInvoice", "ts": "2026-03-01T10:00:00Z",
+      "args": ["msme1", "buyer1", 40000000, "2026-02-25", "2026-05-07", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "N", "fileHash": "f1", "lineItems": [] }],
+      "expect": { "result": { "status": "DRAFT" } } },
+    { "caller": "buyer1", "fn": "BuyerAcceptInvoice", "args": ["$inv.invoiceId"] },
+    { "caller": "op", "fn": "ListInvoice", "ts": "2026-03-01T10:00:00Z", "args": ["$inv.invoiceId", 800, 1], "expect": { "result": { "pricePerUnitPaise": 98532 } } },
+
+    { "caller": "pending", "fn": "Invest", "note": "KYC PENDING investor blocked", "args": ["$inv.invoiceId", "investorPending", 1, "P-1"], "expect": { "error": "ERR_KYC_NOT_APPROVED" } },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["investorPending", "REJECTED", ""] },
+    { "caller": "pending", "fn": "Invest", "note": "REJECTED is not APPROVED either", "args": ["$inv.invoiceId", "investorPending", 1, "P-2"], "expect": { "error": "ERR_KYC_NOT_APPROVED" } },
+
+    { "caller": "tiny", "fn": "Invest", "note": "cap 50,00,000 paise; 51 units = 50,25,132 -> exceeds", "args": ["$inv.invoiceId", "investorTiny", 51, "T-1"], "expect": { "error": "ERR_CAP_EXCEEDED" } },
+    { "caller": "tiny", "fn": "Invest", "note": "25 units = 24,63,300 OK", "args": ["$inv.invoiceId", "investorTiny", 25, "T-2"], "expect": { "result": { "holding": { "costPaise": 2463300, "units": 25 } } } },
+    { "caller": "tiny", "fn": "Invest", "note": "cumulative: +26 units -> 50,25,132 > cap", "args": ["$inv.invoiceId", "investorTiny", 26, "T-3"], "expect": { "error": "ERR_CAP_EXCEEDED" } },
+    { "caller": "tiny", "fn": "Invest", "note": "cumulative: +25 units -> 49,26,600 <= cap OK", "args": ["$inv.invoiceId", "investorTiny", 25, "T-4"], "expect": { "result": { "holding": { "costPaise": 4926600, "units": 50, "upiRefs": ["T-2", "T-4"] } } } },
+    { "caller": "tiny", "fn": "Invest", "note": "even 1 more unit exceeds", "args": ["$inv.invoiceId", "investorTiny", 1, "T-5"], "expect": { "error": "ERR_CAP_EXCEEDED" } },
+    { "caller": "big", "fn": "Invest", "note": "cap 0 = unlimited", "args": ["$inv.invoiceId", "investorBig", 300, "B-1"], "expect": { "result": { "holding": { "units": 300 }, "invoice": { "unitsSold": 350 } } } },
+
+    { "caller": "op", "fn": "FreezeParticipant", "args": ["investorBig", "AML review"], "expect": { "result": { "frozen": true, "frozenReason": "AML review" } }, "events": ["PARTICIPANT_FROZEN"] },
+    { "caller": "big", "fn": "Invest", "note": "frozen investor", "args": ["$inv.invoiceId", "investorBig", 1, "B-2"], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "op", "fn": "FreezeParticipant", "args": ["msme1", "suspicious"] },
+    { "caller": "msme1", "fn": "CreateInvoice", "note": "frozen MSME", "args": ["msme1", "buyer1", 10000000, "2026-02-25", "2026-05-07", { "supplierGstin": "S", "buyerGstin": "B", "invoiceNumber": "N2", "fileHash": "f2", "lineItems": [] }], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "msme1", "fn": "CancelInvoice", "note": "frozen MSME cannot even cancel", "args": ["$inv.invoiceId", "x"], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "op", "fn": "FreezeParticipant", "args": ["buyer1", "dispute"] },
+    { "caller": "buyer1", "fn": "BuyerAcceptInvoice", "note": "frozen buyer", "args": ["$inv.invoiceId"], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "op", "fn": "FreezeParticipant", "args": ["operator2", "rogue"] },
+    { "caller": "op2", "fn": "ListInvoice", "note": "frozen operator blocked on admin fn", "args": ["$inv.invoiceId", 800, 1], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "op2", "fn": "FreezeParticipant", "note": "frozen operator cannot freeze others", "args": ["operator1", "revenge"], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+    { "caller": "op2", "fn": "RecordAnomaly", "args": ["OTHER", "x", "", "E", "d"], "expect": { "error": "ERR_PARTICIPANT_FROZEN" } },
+
+    { "caller": "op", "fn": "UnfreezeParticipant", "args": ["investorBig"], "expect": { "result": { "frozen": false } }, "events": ["PARTICIPANT_UNFROZEN"] },
+    { "caller": "big", "fn": "Invest", "note": "unfrozen -> works again", "args": ["$inv.invoiceId", "investorBig", 50, "B-3"], "expect": { "result": { "invoice": { "status": "FULLY_FUNDED", "unitsSold": 400 } } } },
+
+    { "caller": "op", "fn": "RecordAnomaly", "args": ["CAP_VIOLATION", "investorTiny", "$inv.invoiceId", "ERR_CAP_EXCEEDED", "attempted 51 units"], "expect": { "result": { "kind": "CAP_VIOLATION", "actorId": "investorTiny", "errorCode": "ERR_CAP_EXCEEDED" } }, "events": ["ANOMALY_RECORDED"] },
+    { "caller": "op", "fn": "RecordAnomaly", "args": ["BOGUS", "x", "", "E", "d"], "expect": { "error": "ERR_INVALID_ARGUMENT" } },
+    { "caller": "op", "fn": "GetAnomalies", "args": [10, ""], "expect": { "result": { "items": [ { "kind": "CAP_VIOLATION" } ], "nextBookmark": null } } }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "private data ACL (regulator org excluded; supplier/buyer/operator only) + demoMode=false gating",
+  "config": { "demoMode": false },
+  "identities": {
+    "op": { "mspId": "Org1MSP", "role": "OPERATOR", "participantId": "operator1" },
+    "msme1": { "mspId": "Org1MSP", "role": "MSME", "participantId": "msme1" },
+    "msme2": { "mspId": "Org1MSP", "role": "MSME", "participantId": "msme2" },
+    "buyer1": { "mspId": "Org2MSP", "role": "BUYER", "participantId": "buyer1" },
+    "buyer2": { "mspId": "Org2MSP", "role": "BUYER", "participantId": "buyer2" },
+    "inv1": { "mspId": "Org1MSP", "role": "INVESTOR", "participantId": "investor1" },
+    "reg": { "mspId": "Org3MSP", "role": "REGULATOR", "participantId": "regulator1" }
+  },
+  "steps": [
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["msme1", "MSME", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["msme2", "MSME", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["buyer1", "BUYER", "Org2MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["buyer2", "BUYER", "Org2MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["investor1", "INVESTOR", "Org1MSP", 0] },
+    { "caller": "op", "fn": "RegisterParticipant", "args": ["regulator1", "REGULATOR", "Org3MSP", 0] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["msme1", "APPROVED", ""] },
+    { "caller": "op", "fn": "SetKycStatus", "args": ["buyer1", "APPROVED", ""] },
+    { "id": "inv", "caller": "msme1", "fn": "CreateInvoice", "ts": "2026-03-01T10:00:00Z",
+      "args": ["msme1", "buyer1", 1000000, "2026-02-25", "2026-05-07", { "supplierGstin": "27AAACS1234A1ZX", "buyerGstin": "27AABCA3456D1ZX", "invoiceNumber": "PRIV-1", "fileHash": "fp", "lineItems": [ { "description": "secret item", "quantity": 1, "unitPricePaise": 1000000, "totalPaise": 1000000 } ], "extractedJson": "{\"x\":1}" }] },
+    { "caller": "msme1", "fn": "GetInvoicePrivateDetails", "args": ["$inv.invoiceId"], "expect": { "result": { "invoiceNumber": "PRIV-1", "supplierGstin": "27AAACS1234A1ZX", "fileHash": "fp", "lineItems": [ { "description": "secret item" } ], "extractedJson": "{\"x\":1}" } } },
+    { "caller": "buyer1", "fn": "GetInvoicePrivateDetails", "args": ["$inv.invoiceId"], "expect": { "result": { "invoiceNumber": "PRIV-1" } } },
+    { "caller": "op", "fn": "GetInvoicePrivateDetails", "args": ["$inv.invoiceId"], "expect": { "result": { "invoiceNumber": "PRIV-1" } } },
+    { "caller": "reg", "fn": "GetInvoicePrivateDetails", "note": "Org3MSP is not in the collection", "args": ["$inv.invoiceId"], "expect": { "error": "ERR_UNAUTHORIZED_ROLE" } },
+    { "caller": "msme2", "fn": "GetInvoicePrivateDetails", "note": "same org, different supplier", "args": ["$inv.invoiceId"], "expect": { "error": "ERR_UNAUTHORIZED_ROLE" } },
+    { "caller": "buyer2", "fn": "GetInvoicePrivateDetails", "note": "same org, different buyer", "args": ["$inv.invoiceId"], "expect": { "error": "ERR_UNAUTHORIZED_ROLE" } },
+    { "caller": "inv1", "fn": "GetInvoicePrivateDetails", "note": "investors never see private details", "args": ["$inv.invoiceId"], "expect": { "error": "ERR_UNAUTHORIZED_ROLE" } },
+    { "caller": "reg", "fn": "GetInvoice", "note": "public fields + hashes visible to regulator", "args": ["$inv.invoiceId"], "expect": { "result": { "status": "DRAFT", "faceValuePaise": 1000000, "supplierId": "msme1" } } },
+    { "caller": "reg", "fn": "GetInvoicePrivateDetails", "args": ["nope"], "expect": { "error": "ERR_NOT_FOUND" } },
+
+    { "caller": "op", "fn": "AdvanceDemoClock", "args": [60], "expect": { "error": "ERR_DEMO_MODE_DISABLED" } },
+    { "caller": "op", "fn": "SeedBuyerHistory", "args": ["buyer1", 1, 0, 0], "expect": { "error": "ERR_DEMO_MODE_DISABLED" } },
+    { "caller": "reg", "fn": "GetClock", "args": [], "expect": { "result": { "demoMode": false, "offsetSeconds": 0 } } },
+    { "caller": "reg", "fn": "GetConfig", "args": [], "expect": { "result": { "demoMode": false, "unitFaceValuePaise": 100000, "graceDays": 7, "defaultDays": 90 } } },
+    { "caller": "reg", "fn": "ListParticipants", "args": [3, ""], "expect": { "result": { "items": [ { "id": "buyer1" }, { "id": "buyer2" }, { "id": "investor1" } ], "nextBookmark": "investor1" } } },
+    { "caller": "reg", "fn": "ListParticipants", "args": [3, "investor1"], "expect": { "result": { "items": [ { "id": "msme1" }, { "id": "msme2" }, { "id": "operator1" } ], "nextBookmark": "operator1" } } },
+    { "caller": "reg", "fn": "ListParticipants", "args": [3, "operator1"], "expect": { "result": { "items": [ { "id": "regulator1" } ], "nextBookmark": null } } }
+  ]
+}

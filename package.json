@@ -1,0 +1,13 @@
+{
+  "name": "billbridge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BillBridge — tokenized MSME invoice financing with UPI-native settlement on Drunix",
+  "workspaces": ["shared", "backend", "frontend", "e2e"],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": { "node": ">=20" }
+}
