@@ -215,7 +215,7 @@ describe('upload, tokenize, duplicate attack', () => {
   });
   it('rejects all three duplicate variants with 409 + anomaly, visible to the regulator', async () => {
     const before = (await h.app.inject({ method: 'GET', url: '/api/platform/anomalies?pageSize=100', headers: auth(regulator) })).json().items.length;
-    const expected: Record<string, string> = { SAME_FILE: 'ERR_DUPLICATE_INVOICE_ID', NEW_NUMBER: 'ERR_DUPLICATE_INVOICE_CONTENT', CHANGED_AMOUNT: 'ERR_DUPLICATE_INVOICE_ID' };
+    const expected: Record<string, string> = { SAME_FILE: 'ERR_DUPLICATE_FILE', NEW_NUMBER: 'ERR_DUPLICATE_INVOICE_CONTENT', CHANGED_AMOUNT: 'ERR_DUPLICATE_INVOICE_ID' };
     for (const variant of ['SAME_FILE', 'NEW_NUMBER', 'CHANGED_AMOUNT'] as const) {
       const r = await h.app.inject({ method: 'POST', url: '/api/demo/attack/duplicate', payload: { variant } });
       expect(r.statusCode, r.body).toBe(200);

@@ -93,7 +93,11 @@ export async function demoRoutes(fastify: FastifyInstance, ctx: AppContext): Pro
     const variant = req.body.variant;
     let request: CreateInvoiceRequest = CreateInvoiceRequestSchema.parse(body);
     let fileOverride: { hash: string } | undefined;
-    if (variant === 'NEW_NUMBER') {
+    if (variant === 'SAME_FILE') {
+      // attacker re-uploads the SAME PDF bytes but edits the form to dodge guards #1 and #2 -> only the file hash catches it
+      const items = request.lineItems.map((li, i) => (i === 0 ? { ...li, description: `${li.description} (revised)`, totalPaise: li.totalPaise + 100000, unitPricePaise: li.quantity > 0 ? li.unitPricePaise : li.unitPricePaise + 100000 } : li));
+      request = { ...request, invoiceNumber: `${request.invoiceNumber}-DUP`, faceValuePaise: request.faceValuePaise + 100000, lineItems: items };
+    } else if (variant === 'NEW_NUMBER') {
       request = { ...request, invoiceNumber: `${request.invoiceNumber}-R` };
       fileOverride = { hash: saltedHash(fileBytes(file), 1) };
     } else if (variant === 'CHANGED_AMOUNT') {

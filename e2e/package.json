@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "install-browsers": "playwright install chromium",
+    "test": "node run.mjs test",
+    "test:headed": "node run.mjs test --headed",
+    "install-browsers": "node run.mjs install chromium",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
   }
 }

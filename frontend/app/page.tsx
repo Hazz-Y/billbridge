@@ -20,9 +20,9 @@ function useCountUp(target: number, ms = 900): number {
     const begin = from.current;
     let raf = 0;
     const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / ms);
+      const p = Math.min(1, Math.max(0, (t - start) / ms)); // rAF timestamps can precede `start`
       const eased = 1 - Math.pow(1 - p, 3);
-      const cur = Math.round(begin + (target - begin) * eased);
+      const cur = Math.max(0, Math.round(begin + (target - begin) * eased));
       setV(cur);
       if (p < 1) raf = requestAnimationFrame(tick);
       else from.current = target;
