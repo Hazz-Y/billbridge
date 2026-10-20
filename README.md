@@ -13,6 +13,16 @@ MSME uploads PDF → AI extraction (+ GSTIN checksum, integer-paise arithmetic) 
 → Supplier paid via UPI → Time passes → Buyer repays via UPI → waterfall → investors paid, buyer score updated
 ```
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Landing](docs/screenshots/01-landing.png) Landing — live stats, ledger badge, sandbox banner | ![Login](docs/screenshots/02-login.png) Login — demo-credential chips per role |
+| ![MSME](docs/screenshots/03-msme-invoices.png) MSME — invoice pipeline tracker (Draft → Settled) | ![Investor marketplace](docs/screenshots/04-investor-marketplace.png) Investor marketplace — live pricing (₹985.32/unit, 8.11% p.a.) |
+| ![Operator](docs/screenshots/05-operator.png) Operator — listing, KYC, settlement, reconciliation | ![Regulator](docs/screenshots/06-regulator.png) Regulator — live audit feed with 3 rejected double-financing attempts |
+| ![Buyer](docs/screenshots/07-buyer.png) Buyer — reliability score gauge (Aurora Motors, 63) | ![Demo panel](docs/screenshots/08-demo-panel.png) Demo Panel — role switch, time travel, attack buttons |
+| ![Mobile](docs/screenshots/09-mobile-landing.png) Mobile (390×844) — no horizontal overflow | ![Swagger](docs/screenshots/10-swagger.png) Swagger UI — generated from the Zod schemas |
+
 ## Quick start (one command)
 
 ```bash
